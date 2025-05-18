@@ -19,7 +19,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "TrackKLT.h"
+#include "TrackACC.h"
 
 #include "Grider_FAST.h"
 #include "Grider_GRID.h"
@@ -28,11 +28,11 @@
 #include "feat/FeatureDatabase.h"
 #include "utils/opencv_lambda_body.h"
 #include "utils/print.h"
-#include <iomanip>
+#include <torch/script.h>
 
 using namespace ov_core;
 
-void TrackKLT::feed_new_camera(const CameraData &message) {
+void TrackACC::feed_new_camera(const CameraData &message) {
 
   // Error check that we have all the data
   if (message.sensor_ids.empty() || message.sensor_ids.size() != message.images.size() || message.images.size() != message.masks.size()) {
@@ -94,7 +94,7 @@ void TrackKLT::feed_new_camera(const CameraData &message) {
   }
 }
 
-void TrackKLT::feed_monocular(const CameraData &message, size_t msg_id) {
+void TrackACC::feed_monocular(const CameraData &message, size_t msg_id) {
 
   // Lock this data feed for this camera
   size_t cam_id = message.sensor_ids.at(msg_id);
@@ -200,7 +200,7 @@ void TrackKLT::feed_monocular(const CameraData &message, size_t msg_id) {
   PRINT_ALL("[TIME-KLT]: %.4f seconds for total\n", (rT5 - rT1).total_microseconds() * 1e-6);
 }
 
-void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t msg_id_right) {
+void TrackACC::feed_stereo(const CameraData &message, size_t msg_id_left, size_t msg_id_right) {
 
   // Lock this data feed for this camera
   size_t cam_id_left = message.sensor_ids.at(msg_id_left);
@@ -393,7 +393,7 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
   PRINT_ALL("[TIME-KLT]: %.4f seconds for total\n", (rT6 - rT1).total_microseconds() * 1e-6);
 }
 
-void TrackKLT::perform_detection_monocular(const std::vector<cv::Mat> &img0pyr, const cv::Mat &mask0, std::vector<cv::KeyPoint> &pts0,
+void TrackACC::perform_detection_monocular(const std::vector<cv::Mat> &img0pyr, const cv::Mat &mask0, std::vector<cv::KeyPoint> &pts0,
                                            std::vector<size_t> &ids0) {
 
   // Create a 2D occupancy grid for this current image
@@ -528,7 +528,7 @@ void TrackKLT::perform_detection_monocular(const std::vector<cv::Mat> &img0pyr, 
   }
 }
 
-void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr, const cv::Mat &mask0,
+void TrackACC::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr, const cv::Mat &mask0,
                                         const cv::Mat &mask1, size_t cam_id_left, size_t cam_id_right, std::vector<cv::KeyPoint> &pts0,
                                         std::vector<cv::KeyPoint> &pts1, std::vector<size_t> &ids0, std::vector<size_t> &ids1) {
 
@@ -650,12 +650,11 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
       pts0_new.push_back(kpt.pt);
     }
 
-
-
     // TODO: Project points from the left frame into the right frame
     // TODO: This will not work for large baseline systems.....
     // TODO: If we had some depth estimates we could do a better projection
     // TODO: Or project and search along the epipolar line??
+
     std::vector<cv::KeyPoint> kpts1_new;
     std::vector<cv::Point2f> pts1_new;
     kpts1_new = kpts0_new;
@@ -668,20 +667,16 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
       // NOTE: we have a pretty big window size here since our projection might be bad
       // NOTE: but this might cause failure in cases of repeated textures (eg. checkerboard)
 
-
       std::vector<uchar> mask;
-      // perform_matching(img0pyr, img1pyr, kpts0_new, kpts1_new, cam_id_left, cam_id_right, mask);
-      std::vector<float> error;
-      cv::TermCriteria term_crit = cv::TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, 30, 0.01);
-      cv::calcOpticalFlowPyrLK(img0pyr, img1pyr, pts0_new, pts1_new, mask, error, win_size, pyr_levels, term_crit,
-                               cv::OPTFLOW_USE_INITIAL_FLOW);
 
-       //vis_stereo(pts0_new, pts1_new, mask, img0pyr.at(0), img1pyr.at(0));
+      perform_stereo_matching(img0pyr, img1pyr, pts0_new, pts1_new, cam_id_left, cam_id_right, mask);
 
-       static int image_counter2 = 0; // Persistent counter
-       image_counter2 = image_counter2 + 1;
+      //std::vector<float> error;
+      //cv::TermCriteria term_crit = cv::TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, 30, 0.01);
+      //cv::calcOpticalFlowPyrLK(img0pyr, img1pyr, pts0_new, pts1_new, mask, error, win_size, pyr_levels, term_crit,
+      //                         cv::OPTFLOW_USE_INITIAL_FLOW);
 
-       std::cout << "sssssssssssssssssssss image_counter2 : " << image_counter2 << std::endl;
+       /*
        std::cout << "sssssssssssssssssssss: " << pts0_new.size() << std::endl;
        std::cout << "Tracked points (Left -> Right):" << std::endl;
        for (size_t i = 0; i < pts0_new.size(); ++i) {
@@ -690,7 +685,7 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
                      << "Right (" << pts1_new[i].x << ", " << pts1_new[i].y << ") "
                      << "Mask: " << static_cast<int>(mask[i]) << std::endl;
        }
-
+      */
       // Loop through and record only ones that are valid
       for (size_t i = 0; i < pts0_new.size(); i++) {
 
@@ -706,6 +701,7 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
         // TODO: we should check to see if we can combine this new feature and the one in the right
         // TODO: seems if reject features which overlay with right features already we have very poor tracking perf
         if (!oob_left && !oob_right && mask[i] == 1) {
+
           // update the uv coordinates
           kpts0_new.at(i).pt = pts0_new.at(i);
           kpts1_new.at(i).pt = pts1_new.at(i);
@@ -846,7 +842,115 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
   }
 }
 
-void TrackKLT::perform_matching(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr, std::vector<cv::KeyPoint> &kpts0,
+void TrackACC::perform_stereo_matching(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr,
+                                       std::vector<cv::Point2f> &pts0, std::vector<cv::Point2f> &pts1,
+                                       size_t id0, size_t id1, std::vector<uchar> &mask_out) {
+
+  assert(pts0.size() == pts1.size());
+
+  if (pts0.size() < 10) {
+    for (size_t i = 0; i < pts0.size(); i++)
+      mask_out.push_back((uchar)0);
+    return;
+  }
+
+  torch::Tensor left_tensor, right_tensor;
+  int pad_bottom, pad_right;
+  preprocess_image(img0pyr.at(0), left_tensor, pad_bottom, pad_right);
+  preprocess_image(img1pyr.at(0), right_tensor, pad_bottom, pad_right);
+
+  left_tensor = left_tensor.to(torch::kCUDA);
+  right_tensor = right_tensor.to(torch::kCUDA);
+
+  std::vector<torch::jit::IValue> inputs = {left_tensor, right_tensor};
+  torch::Tensor disparity = model.forward(inputs).toTensor().squeeze().detach().cpu();
+  cv::Mat disp(disparity.size(0), disparity.size(1), CV_32FC1, disparity.data_ptr<float>());
+
+  int original_height = img0pyr.at(0).rows;
+  int original_width = img0pyr.at(0).cols;
+
+  if (pad_bottom > 0 || pad_right > 0)
+      disp = disp(cv::Rect(0, 0, original_width, original_height));
+
+  cv::Mat disp_filtered;
+  cv::medianBlur(disp, disp_filtered, 5);
+  //cv::bilateralFilter(disp, disp_filtered, 9, 75, 75);
+  //static cv::Mat prev_disp;
+  //if (prev_disp.empty()) prev_disp = disp_filtered.clone();
+  //double alpha = 0.8;
+  //cv::addWeighted(disp_filtered, alpha, prev_disp, 1.0 - alpha, 0, disp_filtered);
+  //prev_disp = disp_filtered.clone();
+
+  // Mask invalid disparities
+  int max_disp = 192;
+  cv::Mat valid_mask = (disp_filtered > 0) & (disp_filtered < max_disp);
+  disp_filtered.setTo(0, ~valid_mask);
+
+  mask_out.clear();
+  for (size_t i = 0; i < pts0.size(); ++i) {
+    int x = static_cast<int>(pts0[i].x);
+    int y = static_cast<int>(pts0[i].y);
+    if (x >= 0 && x < disp_filtered.cols && y >= 0 && y < disp_filtered.rows) {
+      float d = disp_filtered.at<float>(y, x);
+      if (d > 0) {
+        pts1[i].x = pts0[i].x - d;
+        pts1[i].y = pts0[i].y;
+        mask_out.push_back((uchar)1);
+      } else {
+        mask_out.push_back((uchar)0);
+      }
+    } else {
+      mask_out.push_back((uchar)0);
+    }
+  }
+
+  std::vector<cv::Point2f> pts0_n, pts1_n;
+  for (size_t i = 0; i < pts0.size(); i++) {
+    pts0_n.push_back(camera_calib.at(id0)->undistort_cv(pts0[i]));
+    pts1_n.push_back(camera_calib.at(id1)->undistort_cv(pts1[i]));
+  }
+
+  std::vector<uchar> mask_rsc;
+  double max_focallength = std::max({
+    camera_calib.at(id0)->get_K()(0, 0), camera_calib.at(id0)->get_K()(1, 1),
+    camera_calib.at(id1)->get_K()(0, 0), camera_calib.at(id1)->get_K()(1, 1)
+  });
+
+  cv::findFundamentalMat(pts0_n, pts1_n, cv::FM_RANSAC, 2.0 / max_focallength, 0.999, mask_rsc);
+
+  for (size_t i = 0; i < mask_out.size(); i++)
+    mask_out[i] = mask_out[i] && mask_rsc[i];
+
+  //vis_stereo(disp_filtered, pts0, pts1, mask_out, img0pyr.at(0), img1pyr.at(0));
+}
+
+void TrackACC::preprocess_image(const cv::Mat& img, torch::Tensor &tensor, int &pad_bottom, int &pad_right) {
+
+    int w = img.cols;
+    int h = img.rows;
+    int m = 32;
+    int wi = (w / m + 1) * m;
+    int hi = (h / m + 1) * m;
+    pad_right = wi - w;
+    pad_bottom = hi - h;
+
+    cv::Mat padded_img;
+    cv::copyMakeBorder(img, padded_img, 0, pad_bottom, 0, pad_right, cv::BORDER_CONSTANT, cv::Scalar(0));
+    padded_img.convertTo(padded_img, CV_32FC1, 1.0 / 255.0);
+
+    //img.convertTo(img, CV_32FC1, 1.0 / 255.0);
+    cv::Mat img_rgb;
+    cv::cvtColor(padded_img, img_rgb, cv::COLOR_GRAY2RGB);
+
+    tensor = torch::from_blob(img_rgb.data, {1, img_rgb.rows, img_rgb.cols, 3}, torch::kFloat);
+    tensor = tensor.permute({0, 3, 1, 2}).clone();
+
+    torch::Tensor mean = torch::tensor({0.485, 0.456, 0.406}).view({1, 3, 1, 1}).to(tensor.device());
+    torch::Tensor std  = torch::tensor({0.229, 0.224, 0.225}).view({1, 3, 1, 1}).to(tensor.device());
+    tensor = (tensor - mean) / std;
+}
+
+void TrackACC::perform_matching(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr, std::vector<cv::KeyPoint> &kpts0,
                                 std::vector<cv::KeyPoint> &kpts1, size_t id0, size_t id1, std::vector<uchar> &mask_out) {
 
   // We must have equal vectors
@@ -873,9 +977,12 @@ void TrackKLT::perform_matching(const std::vector<cv::Mat> &img0pyr, const std::
 
   // Now do KLT tracking to get the valid new points
   std::vector<uchar> mask_klt;
-  std::vector<float> error;
-  cv::TermCriteria term_crit = cv::TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, 30, 0.01);
-  cv::calcOpticalFlowPyrLK(img0pyr, img1pyr, pts0, pts1, mask_klt, error, win_size, pyr_levels, term_crit, cv::OPTFLOW_USE_INITIAL_FLOW);
+  //std::vector<float> error;
+  //cv::TermCriteria term_crit = cv::TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, 30, 0.01);
+  //cv::calcOpticalFlowPyrLK(img0pyr, img1pyr, pts0, pts1, mask_klt, error, win_size, pyr_levels, term_crit, cv::OPTFLOW_USE_INITIAL_FLOW);
+
+  perform_stereo_matching(img0pyr, img1pyr, pts0, pts1, id0, id1, mask_klt);
+
 
   // Normalize these points, so we can then do ransac
   // We don't want to do ransac on distorted image uvs since the mapping is nonlinear
@@ -905,13 +1012,30 @@ void TrackKLT::perform_matching(const std::vector<cv::Mat> &img0pyr, const std::
   }
 }
 
-void TrackKLT::vis_stereo(const std::vector<cv::Point2f> &pts0,
+void TrackACC::vis_stereo(const cv::Mat &disp_filtered,
+                          const std::vector<cv::Point2f> &pts0,
                           const std::vector<cv::Point2f> &pts1,
                           const std::vector<uchar> &mask_out,
                           const cv::Mat &img0,
                           const cv::Mat &img1) {
 
+    const int max_disp = 192;
+    cv::Mat disp_norm, disp_color;
 
+    // Step 1: Normalize for visual disparity
+    disp_filtered.convertTo(disp_norm, CV_8UC1, 255.0 / max_disp);
+
+    // Step 2: Re-normalize based on valid disparity range
+    double min_val = 0.1, max_val = 96;
+    cv::Mat valid_mask = (disp_filtered > 0) & (disp_filtered < max_disp);
+    cv::minMaxLoc(disp_filtered, &min_val, &max_val, nullptr, nullptr, valid_mask);
+
+    disp_filtered.convertTo(disp_norm, CV_8UC1,
+                            -255.0 / (max_val - min_val),
+                             255.0 * max_val / (max_val - min_val));
+
+    // Step 3: Apply perceptually uniform color map
+    cv::applyColorMap(disp_norm, disp_color, cv::COLORMAP_MAGMA);
 
     // Clone the images for annotation
     cv::Mat left_vis = img0.clone();
@@ -924,25 +1048,20 @@ void TrackKLT::vis_stereo(const std::vector<cv::Point2f> &pts0,
             cv::circle(right_vis, pts1[i], 2, cv::Scalar(0, 0, 255), -1); // Valid match: red
         } else {
             cv::Point2f pt = pts0[i];
-            cv::rectangle(left_vis, cv::Rect(pt.x - 10, pt.y - 10, 20, 20), cv::Scalar(0, 0, 255), 1);
+            cv::rectangle(left_vis, cv::Rect(pt.x - 5, pt.y - 5, 10, 10), cv::Scalar(0, 0, 255), 1);
         }
     }
-    // Show visualizations
-    std::string output_dir = "/stored_images";
 
-static int image_counter = 0; // Persistent counter
-image_counter = image_counter + 1;
-// Save images with numbered filenames
-std::ostringstream filename;
-filename << std::setw(5) << std::setfill('0') << image_counter;
+    // Blend disparity map and left image for overlay
+    cv::Mat disp_overlay;
 
-cv::imwrite(output_dir + "/left_" + filename.str() + ".png", left_vis);
-cv::imwrite(output_dir + "/right_" + filename.str() + ".png", right_vis);
-
-
+    if (disp_color.channels() != left_vis.channels())
+       cv::cvtColor(left_vis, left_vis, cv::COLOR_GRAY2BGR);
+       cv::addWeighted(disp_color, 0.7, left_vis, 0.3, 0.0, disp_overlay);
 
     // Show visualizations
-    //cv::imshow("Left Image (pts0)", left_vis);
-    //cv::imshow("Right Image (pts1)", right_vis);
-    //cv::waitKey(1);
+    cv::imshow("Left Image (pts0)", left_vis);
+    cv::imshow("Right Image (pts1)", right_vis);
+    cv::imshow("Disparity Map (with pts0 overlay)", disp_overlay);
+    cv::waitKey(1);
 }

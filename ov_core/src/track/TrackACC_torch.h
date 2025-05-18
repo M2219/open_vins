@@ -19,10 +19,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef OV_CORE_TRACK_KLT_H
-#define OV_CORE_TRACK_KLT_H
+#ifndef OV_CORE_TRACK_ACC_H
+#define OV_CORE_TRACK_ACC_H
 
 #include "TrackBase.h"
+#include <opencv2/opencv.hpp>
+#include <torch/script.h>
 
 namespace ov_core {
 
@@ -36,7 +38,7 @@ namespace ov_core {
  * This uses the [calcOpticalFlowPyrLK](https://github.com/opencv/opencv/blob/master/modules/video/src/lkpyramid.cpp)
  * OpenCV function to do the KLT tracking.
  */
-class TrackKLT : public TrackBase {
+class TrackACC : public TrackBase {
 
 public:
   /**
@@ -51,10 +53,15 @@ public:
    * @param gridy size of grid in the y-direction / v-direction
    * @param minpxdist features need to be at least this number pixels away from each other
    */
-  explicit TrackKLT(std::unordered_map<size_t, std::shared_ptr<CamBase>> cameras, int numfeats, int numaruco, bool stereo,
-                    HistogramMethod histmethod, int fast_threshold, int gridx, int gridy, int minpxdist)
+  explicit TrackACC(std::unordered_map<size_t, std::shared_ptr<CamBase>> cameras, int numfeats, int numaruco, bool stereo,
+                    HistogramMethod histmethod, int fast_threshold, int gridx, int gridy, int minpxdist, std::string stereo_model_path, bool use_cuda)
       : TrackBase(cameras, numfeats, numaruco, stereo, histmethod), threshold(fast_threshold), grid_x(gridx), grid_y(gridy),
-        min_px_dist(minpxdist) {}
+        min_px_dist(minpxdist) {
+
+      model = torch::jit::load(stereo_model_path);
+      model.to(torch::kCUDA);
+      model.eval();
+  }
 
   /**
    * @brief Process a new image
@@ -62,6 +69,8 @@ public:
    */
   void feed_new_camera(const CameraData &message) override;
 
+private:
+  torch::jit::script::Module model;
 protected:
   /**
    * @brief Process a new monocular image
@@ -114,12 +123,6 @@ protected:
                                 const cv::Mat &mask1, size_t cam_id_left, size_t cam_id_right, std::vector<cv::KeyPoint> &pts0,
                                 std::vector<cv::KeyPoint> &pts1, std::vector<size_t> &ids0, std::vector<size_t> &ids1);
 
-  void vis_stereo(const std::vector<cv::Point2f> &pts0,
-                          const std::vector<cv::Point2f> &pts1,
-                          const std::vector<uchar> &mask_out,
-                          const cv::Mat &img0,
-                          const cv::Mat &img1);
-
   /**
    * @brief KLT track between two images, and do RANSAC afterwards
    * @param img0pyr starting image pyramid
@@ -137,11 +140,24 @@ protected:
   void perform_matching(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr, std::vector<cv::KeyPoint> &pts0,
                         std::vector<cv::KeyPoint> &pts1, size_t id0, size_t id1, std::vector<uchar> &mask_out);
 
+  void perform_stereo_matching(const std::vector<cv::Mat> &img0pyr, const std::vector<cv::Mat> &img1pyr,
+                                       std::vector<cv::Point2f> &pts0, std::vector<cv::Point2f> &pts1,
+                                       size_t id0, size_t id1, std::vector<uchar> &mask_out);
+
+  void preprocess_image(const cv::Mat& img, torch::Tensor &tensor, int &pad_bottom, int &pad_right);
+
+  void vis_stereo(const cv::Mat &disp_filtered,
+                          const std::vector<cv::Point2f> &pts0,
+                          const std::vector<cv::Point2f> &pts1,
+                          const std::vector<uchar> &mask_out,
+                          const cv::Mat &img0,
+                          const cv::Mat &img1);
+
   // Parameters for our FAST grid detector
   int threshold;
   int grid_x;
   int grid_y;
-
+  bool use_cuda;
   // Minimum pixel distance to be "far away enough" to be a different extracted feature
   int min_px_dist;
 
@@ -157,4 +173,4 @@ protected:
 
 } // namespace ov_core
 
-#endif /* OV_CORE_TRACK_KLT_H */
+#endif /* OV_CORE_TRACK_ACC_H */

@@ -15,8 +15,8 @@ calib_imu_g_sensitivity: false # if gyroscope gravity sensitivity (Tg) should be
 
 max_clones: 11 # how many clones in the sliding window
 max_slam: 50 # number of features in our state vector
-max_slam_in_update: 25 # update can be split into sequential updates of batches, how many in a batch
-max_msckf_in_update: 40 # how many MSCKF features to use in the update
+max_slam_in_update: 25 # 25 update can be split into sequential updates of batches, how many in a batch
+max_msckf_in_update: 40 # 40  how many MSCKF features to use in the update
 dt_slam_delay: 1 # delay before initializing (helps with stability from bad initialization...)
 
 gravity_mag: 9.81 # magnitude of gravity in this location
@@ -27,20 +27,20 @@ feat_rep_aruco: "ANCHORED_MSCKF_INVERSE_DEPTH"
 
 # zero velocity update parameters we can use
 # we support either IMU-based or disparity detection.
-try_zupt: false
-zupt_chi2_multipler: 0 # set to 0 for only disp-based
+try_zupt: true
+zupt_chi2_multipler: 0.5 # set to 0 for only disp-based
 zupt_max_velocity: 0.1
 zupt_noise_multiplier: 10
-zupt_max_disparity: 0.5 # set to 0 for only imu-based
+zupt_max_disparity: 0.0 # set to 0 for only imu-based
 zupt_only_at_beginning: false
 
 # ==================================================================
 # ==================================================================
 
-init_window_time: 2.0 # how many seconds to collect initialization information
-init_imu_thresh: 1.5 # threshold for variance of the accelerometer to detect a "jerk" in motion
-init_max_disparity: 10.0 # max disparity to consider the platform stationary (dependent on resolution)
-init_max_features: 50 # how many features to track during initialization (saves on computation)
+init_window_time: 2.0 # 2#how many seconds to collect initialization information
+init_imu_thresh: 0.5 # threshold for variance of the accelerometer to detect a "jerk" in motion
+init_max_disparity: 15.0 # max disparity to consider the platform stationary (dependent on resolution)
+init_max_features: 20 # 50# how many features to track during initialization (saves on computation)
 
 init_dyn_use: false # if dynamic initialization should be used
 init_dyn_mle_opt_calib: false # if we should optimize calibration during intialization (not recommended)
@@ -62,12 +62,12 @@ init_dyn_bias_a: [ 0.0, 0.0, 0.0 ] # initial accelerometer bias guess
 # ==================================================================
 # ==================================================================
 
-record_timing_information: true # if we want to record timing information of the method
+record_timing_information: false # if we want to record timing information of the method
 record_timing_filepath: "/tmp/traj_timing.txt" # https://docs.openvins.com/eval-timing.html#eval-ov-timing-flame
 
 # if we want to save the simulation state and its diagional covariance
 # use this with rosrun ov_eval error_simulation
-save_total_state: true
+save_total_state: false
 filepath_est: "/tmp/ov_estimate.txt"
 filepath_std: "/tmp/ov_estimate_std.txt"
 filepath_gt: "/tmp/ov_groundtruth.txt"
@@ -78,8 +78,8 @@ filepath_gt: "/tmp/ov_groundtruth.txt"
 # our front-end feature tracking parameters
 # we have a KLT and descriptor based (KLT is better implemented...)
 use_klt: true # if true we will use KLT, otherwise use a ORB descriptor + robust matching
-num_pts: 2000 # number of points (per camera) we will extract and try to track
-fast_threshold: 20 # threshold for fast extraction (warning: lower threshs can be expensive)
+num_pts: 2000 #200  number of points (per camera) we will extract and try to track
+fast_threshold: 12 # 20 # threshold for fast extraction (warning: lower threshs can be expensive)
 grid_x: 5 # extraction sub-grid count for horizontal direction (uniform tracking)
 grid_y: 5 # extraction sub-grid count for vertical direction (uniform tracking)
 min_px_dist: 10 # distance between features (features near each other provide less information)
@@ -97,7 +97,6 @@ downsize_aruco: true
 
 # Disparity
 use_nn: true
-
 # ==================================================================
 # ==================================================================
 
@@ -116,7 +115,3 @@ use_mask: false
 # imu config should also have the correct noise values
 relative_config_imu: "kalibr_imu_chain.yaml"
 relative_config_imucam: "kalibr_imucam_chain.yaml"
-
-
-
-

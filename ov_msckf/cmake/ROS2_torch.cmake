@@ -14,8 +14,8 @@ find_package(image_transport REQUIRED)
 find_package(ov_core REQUIRED)
 find_package(ov_init REQUIRED)
 
-find_package(CUDA REQUIRED)
-set(TENSORRT_LIBS nvinfer nvonnxparser nvinfer_plugin)
+set(Torch_DIR "/usr/local/libtorch/share/cmake/Torch")
+find_package(Torch REQUIRED)
 
 
 # Describe ROS project
@@ -31,6 +31,7 @@ include_directories(
         ${EIGEN3_INCLUDE_DIR}
         ${Boost_INCLUDE_DIRS}
         ${CERES_INCLUDE_DIRS}
+        ${TORCH_INCLUDE_DIRS}
 )
 
 # Set link libraries used by all binaries
@@ -38,7 +39,7 @@ list(APPEND thirdparty_libraries
         ${Boost_LIBRARIES}
         ${CERES_LIBRARIES}
         ${OpenCV_LIBRARIES}
-
+        ${TORCH_LIBRARIES}
 )
 list(APPEND ament_libraries
         rclcpp
@@ -75,8 +76,8 @@ list(APPEND LIBRARY_SOURCES src/ros/ROS2Visualizer.cpp src/ros/ROSVisualizerHelp
 file(GLOB_RECURSE LIBRARY_HEADERS "src/*.h")
 add_library(ov_msckf_lib SHARED ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 ament_target_dependencies(ov_msckf_lib ${ament_libraries})
-target_link_libraries(ov_msckf_lib ${thirdparty_libraries})
-target_include_directories(ov_msckf_lib PUBLIC src/)
+target_link_libraries(ov_msckf_lib ${thirdparty_libraries} ${TORCH_LIBRARIES})
+target_include_directories(ov_msckf_lib PUBLIC src/ ${TORCH_INCLUDE_DIRS})
 install(TARGETS ov_msckf_lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
