@@ -51,14 +51,8 @@ ros2 run euroc_publisher euroc_publisher_cuda_node --ros-args -p bag_path:=./V1_
 
 ### Absolute Trajectory Error (ATE) on EuRoC MAV Dataset (Degree/Meters)
 
-<div style="font-size: 12px;">
+![ATE Table](table.png)
 
-| Method             | V1_01_easy | V1_02_medium | V1_03_difficult | V2_01_easy | V2_02_medium | V2_03_difficult |
-|--------------------|------------|--------------|-----------------|------------|--------------|-----------------|
-| OpenVINS           | 0.825 / 0.060 | 1.652 / 0.065 | 2.694 / 0.090 | 0.854 / 0.110 | 1.417 / 0.060 | 1.488 / **0.077** |
-| OpenVINS + StereoSA | 0.554 / 0.079 | 1.584 / 0.118 | 1.367 / 0.171 | 1.060 / 0.465 | 1.789 / 0.116 | **1.270** / 0.189 |
-
-</div>
 **Note:** The EuRoC MAV dataset uses automatic exposure time, making stereo matching more challenging. Nonetheless, the results show overall improvement.
 Expect further enhancements with consistent, rectified images.
 
