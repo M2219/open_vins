@@ -68,7 +68,7 @@ To publish the OAK-D Pro images and the associated disparity, run the following 
 
 ```bash
 ros2 launch ov_msckf subscribe.launch.py config_path:=/root/ACNMR/openvins/src/open_vins/config/oak_d_pro_400/estimator_config.yaml
-
+```
 # OpenVINS [Original ReadMe]
 
 [![ROS 1 Workflow](https://github.com/rpng/open_vins/actions/workflows/build_ros1.yml/badge.svg)](https://github.com/rpng/open_vins/actions/workflows/build_ros1.yml)
