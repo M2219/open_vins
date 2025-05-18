@@ -64,7 +64,7 @@ Ensure that the correct calibration is provided for the camera.
 To publish the OAK-D Pro images and the associated disparity, run the following command: 
 
 ```bash
-ros2 launch ov_msckf subscribe.launch.py config_path:=/root/ACNMR/openvins/src/open_vins/config/oak_d_pro_400/estimator_config.yaml
+ros2 launch ov_msckf subscribe.launch.py config_path:=./src/open_vins/config/oak_d_pro_400/estimator_config.yaml
 ```
 # OpenVINS [Original ReadMe]
 
