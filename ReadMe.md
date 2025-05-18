@@ -1,4 +1,75 @@
-# OpenVINS
+# OpenVINS + StereoSA
+
+This fork extends OpenVINS to utilize a stereo matching network for finding corresponding keypoints between the left and right images.
+
+Developments:
+
+* euroc_publisher package: Publishes images and the associated disparity data from the Euroc dataset.
+* depthai_desc package: Provides the OAK-D Pro camera description.
+* depthai_oakdpro: Publishes images and the associated disparity data from the OAK-D Pro camera.
+* ov_core/src/track/TrackACC.cpp: Integrates the estimated disparity into the tracking process.
+
+
+# Usage
+
+## Building
+
+Build the pakcages:
+Note: If building all components together, ensure that you have more than 16 GB of memory. If not, add an additional 16 GB of swap memory.
+```
+colcon build --event-handlers console_cohesion+ --packages-select ov_core ov_init ov_msckf ov_eval depthai_desc euroc_publisher depthai_oakdpro
+```
+
+## Preparing the Stereo Model
+
+Convert the stereo model from ONNX to TensorRT plan format using NVIDIA TensorRT optimization:
+
+```
+/usr/src/tensorrt/bin/trtexec --onnx=stereo_model.onnx --best --saveEngine=stereo_model.plan
+```
+Copy the model to the /tmp
+
+```
+cp stereo_model.plan /tmp
+```
+
+## Euroc dataset
+
+Terminal 1:
+```
+ros2 launch ov_msckf subscribe.launch.py config:=euroc_mav
+
+```
+Terminal 2:
+```
+rviz2 -d src/open_vins/ov_msckf/launch/display_ros2.rviz
+```
+Terminal 3:
+```
+ros2 run euroc_publisher euroc_publisher_cuda_node --ros-args -p bag_path:=./V1_01_easy/V1_01_easy.db3
+```
+
+### Absolute Trajectory Error (ATE) on EuRoC MAV Dataset (Degree/Meters)
+
+| Method             | V1_01_easy | V1_02_medium | V1_03_difficult | V2_01_easy | V2_02_medium | V2_03_difficult |
+|--------------------|------------|--------------|-----------------|------------|--------------|-----------------|
+| OpenVINS           | 0.825 / 0.060 | 1.652 / 0.065 | 2.694 / 0.090 | 0.854 / 0.110 | 1.417 / 0.060 | 1.488 / **0.077** |
+| OpenVINS + StereoSA | 0.554 / 0.079 | 1.584 / 0.118 | 1.367 / 0.171 | 1.060 / 0.465 | 1.789 / 0.116 | **1.270** / 0.189 |
+
+**Note:** The EuRoC MAV dataset uses automatic exposure time, making stereo matching more challenging. Nonetheless, the results show overall improvement.
+Expect further enhancements with consistent, rectified images.
+
+## OAK-D Pro  
+
+`config/oak_d_pro` and `config/oak_d_pro_400` provide configurations for the OAK-D Pro camera with two different resolutions as specified in the calibration YAML file. 
+Ensure that the correct calibration is provided for the camera. 
+
+To publish the OAK-D Pro images and the associated disparity, run the following command: 
+
+```bash
+ros2 launch ov_msckf subscribe.launch.py config_path:=/root/ACNMR/openvins/src/open_vins/config/oak_d_pro_400/estimator_config.yaml
+
+# OpenVINS [Original ReadMe]
 
 [![ROS 1 Workflow](https://github.com/rpng/open_vins/actions/workflows/build_ros1.yml/badge.svg)](https://github.com/rpng/open_vins/actions/workflows/build_ros1.yml)
 [![ROS 2 Workflow](https://github.com/rpng/open_vins/actions/workflows/build_ros2.yml/badge.svg)](https://github.com/rpng/open_vins/actions/workflows/build_ros2.yml)
