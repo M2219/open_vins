@@ -53,7 +53,7 @@ ros2 run euroc_publisher euroc_publisher_cuda_node --ros-args -p bag_path:=./V1_
 
 ![ATE Table](table.png)
 
-**Note:** The EuRoC MAV dataset uses automatic exposure time, making stereo matching more challenging. Nonetheless, the results show overall improvement.
+**Note:** The EuRoC MAV dataset uses automatic exposure time, making stereo matching more challenging because of different brightness of left and right images. Nonetheless, the results show overall improvement.
 Expect further enhancements with consistent, rectified images.
 
 ## OAK-D Pro  
