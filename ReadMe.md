@@ -12,6 +12,15 @@ Developments:
 
 # Usage
 
+# Performance on EuRoC
+<p align="center">
+  <img width="600" height="300" src="./imgs/disparity_output_optimized.gif" data-zoomable>
+</p>
+
+# SOTA results.
+
+
+
 ## Building
 
 Build the pakcages:
